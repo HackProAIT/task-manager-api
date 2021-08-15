@@ -1,15 +1,41 @@
 const express = require('express')
 const Task = require('../models/task')
+const multer = require('multer')
+const sharp = require('sharp')
 const router = express.Router()
 const auth = require('../middlewares/auth')
-router.post('/tasks', auth, async (req,res)=>{
+
+const image = multer({
+    limits:{
+        fileSize : 100000000
+    },
+    fileFilter(req, file, cb){
+        if(!file.originalname.match(/\.(jpg|jpeg|png)$/)){
+            return cb(new Error('please upload a valid image'))
+        }
+        cb(undefined,true)
+    }
+})
+router.post('/tasks', image.array('images'), auth, async (req,res)=>{
     //const task = new Task(req.body)
+    const data = JSON.parse(req.body.json)
+    
+    const images=[];
+    for(file of req.files){
+        const image = await sharp(file.buffer).resize({width : 500, height : 500}).png().toBuffer()
+        images.push({image})
+    }
+        
     const task = new Task({
-        ...req.body,
+        description : data.description,
+        completed : data.completed,
+        images,
         owner: req.user._id
     })
+    // console.log(req.files)
     try {
         await task.save()
+        // res.set('Content-Type','image/png')
         res.send(task)
     } catch(e) {
         res.status(400).send(e)
